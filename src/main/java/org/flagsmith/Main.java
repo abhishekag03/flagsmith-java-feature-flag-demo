@@ -1,6 +1,8 @@
 package org.flagsmith;
 
 import com.flagsmith.FlagsmithClient;
+import com.flagsmith.exceptions.FlagsmithClientError;
+import com.flagsmith.models.Flags;
 import com.google.gson.Gson;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -54,14 +56,30 @@ public class Main {
 
 
         private void handlePostBooksRequest(HttpExchange t) throws IOException {
-            Book book = getBookFromRequest(t);
-            books.add(book);
+            Boolean allowAddBooks;
+            try {
+                Flags flags = fsClient.getEnvironmentFlags(); // get all environment flags
+                allowAddBooks = flags.isFeatureEnabled("add_books"); // check value of add_books env flag
+            } catch (FlagsmithClientError e) {
+                throw new RuntimeException(e);
+            }
+            String resp;
+            int respCode;
+            if (allowAddBooks) { // allow adding books only if feature flag returns True
+                Book book = getBookFromRequest(t); // parse book data from request
+                books.add(book);
+                resp = "book added successfully";
+                respCode = 201;
+            } else {
+                resp = "method not allowed. Please come back later";
+                respCode = 405;
+            }
             OutputStream os = t.getResponseBody();
-            String resp = "book added successfully";
-            t.sendResponseHeaders(200, resp.length());
+            t.sendResponseHeaders(respCode, resp.length());
             os.write(resp.getBytes());
             os.close();
         }
+
         private static Book getBookFromRequest(HttpExchange t) throws IOException {
             InputStreamReader isr = new InputStreamReader(t.getRequestBody(), StandardCharsets.UTF_8);
             BufferedReader br = new BufferedReader(isr);
