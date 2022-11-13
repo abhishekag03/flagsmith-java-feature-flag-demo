@@ -1,5 +1,6 @@
 package org.flagsmith;
 
+import com.google.gson.Gson;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -40,7 +41,11 @@ public class Main {
         }
 
         private void handleGetBooksRequest(HttpExchange t) throws IOException {
-
+            OutputStream os = t.getResponseBody();
+            String json = new Gson().toJson(books);
+            t.sendResponseHeaders(200, json.length());
+            os.write(json.getBytes());
+            os.close();
         }
 
 
