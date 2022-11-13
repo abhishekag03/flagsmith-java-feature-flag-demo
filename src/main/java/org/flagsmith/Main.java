@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Properties;
 
 public class Main {
+    private static final String ADD_BOOKS_FEATURE_FLAG = "add_books";
 
     static List<Book> books = new ArrayList<>();
     static FlagsmithClient fsClient;
@@ -29,6 +30,7 @@ public class Main {
         server.setExecutor(null); // creates a default executor
         server.start();
     }
+
     private static void populateDummyData() {
         books.add(new Book("1", "Harry Potter", "J.K. Rowling", "20.99"));
         books.add(new Book("2", "War and Peace", "Leo Tolstoy", "26.99"));
@@ -57,9 +59,11 @@ public class Main {
 
         private void handlePostBooksRequest(HttpExchange t) throws IOException {
             Boolean allowAddBooks;
+            int minPrice;
             try {
                 Flags flags = fsClient.getEnvironmentFlags(); // get all environment flags
-                allowAddBooks = flags.isFeatureEnabled("add_books"); // check value of add_books env flag
+                allowAddBooks = flags.isFeatureEnabled(ADD_BOOKS_FEATURE_FLAG); // check value of add_books env flag
+                minPrice = (int) flags.getFeatureValue(ADD_BOOKS_FEATURE_FLAG); // get minimum price of book that can be added
             } catch (FlagsmithClientError e) {
                 throw new RuntimeException(e);
             }
@@ -67,9 +71,15 @@ public class Main {
             int respCode;
             if (allowAddBooks) { // allow adding books only if feature flag returns True
                 Book book = getBookFromRequest(t); // parse book data from request
-                books.add(book);
-                resp = "book added successfully";
-                respCode = 201;
+                if (Integer.parseInt(book.price) >= minPrice) {
+                    books.add(book);
+                    resp = "book added successfully";
+                    respCode = 201;
+                } else {
+                    resp = "book value less than minimum price allowed";
+                    respCode = 406;
+                }
+
             } else {
                 resp = "method not allowed. Please come back later";
                 respCode = 405;
@@ -89,6 +99,7 @@ public class Main {
         }
 
     }
+
     private static FlagsmithClient getFlagsmithClient() {
         String apiKey = readFlagsmithApiKey();
         return FlagsmithClient
@@ -96,6 +107,7 @@ public class Main {
                 .setApiKey(apiKey)
                 .build();
     }
+
     private static String readFlagsmithApiKey() {
         Properties prop = new Properties();
         String propFileName = "config.properties";
